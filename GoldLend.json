@@ -1,0 +1,14 @@
+{
+  "id": "GoldLend",
+  "name": "金币往来",
+  "author": "作者名",
+  "description": "在商店中点击顶栏金币，可把金币借给队友，也可向队友索要金币（对方需确认）。",
+  "version": "0.2.8",
+  "min_game_version": "0.113.1",
+  "has_pck": false,
+  "has_dll": true,
+  "affects_gameplay": true,
+  "dependencies": [
+    { "id": "STS2-RitsuLib", "min_version": "0.6.15" }
+  ]
+}

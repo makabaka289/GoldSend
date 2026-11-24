@@ -1,0 +1,67 @@
+<Project Sdk="Godot.NET.Sdk/4.5.1">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>GoldLend</AssemblyName>
+    <Version>0.2.8</Version>
+    <RootNamespace>GoldLend</RootNamespace>
+    <LangVersion>13.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Sts2GameDir Condition="'$(Sts2GameDir)' == ''">$(STS2_GAME_DIR)</Sts2GameDir>
+    <Sts2DataDir Condition="'$(Sts2DataDir)' == '' And '$(Sts2GameDir)' != ''">$(Sts2GameDir)\data_sts2_windows_x86_64</Sts2DataDir>
+
+    <!-- 创意工坊 3747602295 = RitsuLib 运行时包（含 compat/<game-version>/ 与 shared/） -->
+    <RitsuLibRoot Condition="'$(RitsuLibRoot)' == ''">$(RITSULIB_ROOT)</RitsuLibRoot>
+    <!-- 游戏 0.113.1 使用 0.113.0 API 兼容系列，并非要求游戏补丁号与目录相同 -->
+    <RitsuLibReferenceTarget Condition="'$(RitsuLibReferenceTarget)' == ''">0.113.0</RitsuLibReferenceTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="GoldLend.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 内嵌本地化资源：LogicalName 必须保持平坦名，Loc 按 "GoldLend.Localization." 前缀查找 -->
+    <!-- WithCulture=false 必须显式指定：MSBuild 会把文件名里的 "eng" 当成区域性，
+         默认会把 eng.json 编成 eng\GoldLend.resources.dll 附属程序集，而不是主程序集内嵌资源 -->
+    <EmbeddedResource Include="Resources\GoldLend.Localization.zhs.json" LogicalName="GoldLend.Localization.zhs.json" WithCulture="false" />
+    <EmbeddedResource Include="Resources\GoldLend.Localization.eng.json" LogicalName="GoldLend.Localization.eng.json" WithCulture="false" />
+    <EmbeddedResource Include="Resources\ArrivalVoice\*.mp3" LogicalName="GoldLend.ArrivalVoice.%(Filename)%(Extension)" WithCulture="false" />
+    <EmbeddedResource Include="Resources\1A.wav" LogicalName="GoldLend.ArrivalSound.1A.wav" WithCulture="false"
+                      Condition="Exists('Resources\1A.wav')" />
+  </ItemGroup>
+
+  <!-- 证据目录里有反编译产物，不能参与编译 -->
+  <ItemGroup>
+    <Compile Remove="evidence/**/*.cs" />
+    <Compile Remove="bin/**/*.cs" />
+    <Compile Remove="obj/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="sts2">
+      <HintPath>$(Sts2DataDir)\sts2.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(Sts2DataDir)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- GodotSharp / GodotSharpEditor 由 Godot.NET.Sdk 4.5.1 提供，与游戏自带的 4.5.1.0 同版本 -->
+  <Import Project="$(RitsuLibRoot)\RitsuLib.References.props"
+          Condition="'$(RitsuLibRoot)' != '' And Exists('$(RitsuLibRoot)\RitsuLib.References.props')" />
+
+  <Target Name="ValidateGoldLendDependencies" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(Sts2DataDir)' == '' Or !Exists('$(Sts2DataDir)\sts2.dll')"
+           Text="找不到 sts2.dll。请设置 -p:Sts2GameDir=&lt;游戏安装目录&gt;（当前 Sts2DataDir=$(Sts2DataDir)）。" />
+    <Error Condition="!Exists('$(Sts2DataDir)\0Harmony.dll')"
+           Text="找不到 0Harmony.dll（当前 Sts2DataDir=$(Sts2DataDir)）。" />
+    <Error Condition="'$(RitsuLibRoot)' == '' Or !Exists('$(RitsuLibRoot)\RitsuLib.References.props')"
+           Text="找不到 RitsuLib.References.props。请设置 -p:RitsuLibRoot=&lt;创意工坊 3747602295 目录&gt;。" />
+  </Target>
+</Project>
