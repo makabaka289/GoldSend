@@ -4,7 +4,7 @@ param(
     [string]$Configuration = "Debug",
     [string]$Sts2GameDir = $env:STS2_GAME_DIR,
     [string]$RitsuLibRoot = $env:RITSULIB_ROOT,
-    [string]$RitsuLibReferenceTarget = "0.113.0",
+    [string]$RitsuLibReferenceTarget = "0.114.0",
     [string]$Dotnet = "",
     [switch]$Package
 )

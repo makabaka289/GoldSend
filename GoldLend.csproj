@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <AssemblyName>GoldLend</AssemblyName>
-    <Version>0.2.8</Version>
+    <Version>0.2.9</Version>
     <RootNamespace>GoldLend</RootNamespace>
     <LangVersion>13.0</LangVersion>
     <Nullable>enable</Nullable>
@@ -18,8 +18,7 @@
 
     <!-- 创意工坊 3747602295 = RitsuLib 运行时包（含 compat/<game-version>/ 与 shared/） -->
     <RitsuLibRoot Condition="'$(RitsuLibRoot)' == ''">$(RITSULIB_ROOT)</RitsuLibRoot>
-    <!-- 游戏 0.113.1 使用 0.113.0 API 兼容系列，并非要求游戏补丁号与目录相同 -->
-    <RitsuLibReferenceTarget Condition="'$(RitsuLibReferenceTarget)' == ''">0.113.0</RitsuLibReferenceTarget>
+    <RitsuLibReferenceTarget Condition="'$(RitsuLibReferenceTarget)' == ''">0.114.0</RitsuLibReferenceTarget>
   </PropertyGroup>
 
   <ItemGroup>
@@ -62,6 +61,6 @@
     <Error Condition="!Exists('$(Sts2DataDir)\0Harmony.dll')"
            Text="找不到 0Harmony.dll（当前 Sts2DataDir=$(Sts2DataDir)）。" />
     <Error Condition="'$(RitsuLibRoot)' == '' Or !Exists('$(RitsuLibRoot)\RitsuLib.References.props')"
-           Text="找不到 RitsuLib.References.props。请设置 -p:RitsuLibRoot=&lt;创意工坊 3747602295 目录&gt;。" />
+           Text="找不到 RitsuLib.References.props。请设置 -p:RitsuLibRoot=&lt;RitsuLib 变体包目录&gt;。" />
   </Target>
 </Project>

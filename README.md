@@ -11,16 +11,16 @@
 
 在 Steam 创意工坊订阅 [金币往来](https://steamcommunity.com/sharedfiles/filedetails/?id=3799498581) 和 [RitsuLib](https://steamcommunity.com/sharedfiles/filedetails/?id=3747602295)。联机时请确保队友使用相同的 Mod 版本。
 
-项目清单要求游戏 `0.113.1` 及以上、RitsuLib `0.6.15` 及以上。构建默认使用 RitsuLib 的 `0.113.0` API 兼容目录。
+GoldLend `0.2.9` 面向游戏 `0.114.0`，需要 RitsuLib `0.6.16` 及以上版本。构建默认使用 RitsuLib 的 `0.114.0` 兼容目录。使用游戏 `0.113.1` 时请用 GoldLend `0.2.8`。
 
 ## 从源码构建
 
-在 Windows 上安装 .NET 9 SDK，用 PowerShell 在仓库根目录运行以下命令。将路径替换成实际目录。RitsuLib 目录内应有 `RitsuLib.References.props`。
+在 Windows 上安装 .NET 9 SDK，用 PowerShell 在仓库根目录运行以下命令。将路径替换成实际目录。RitsuLib 变体包目录内应有 `RitsuLib.References.props` 和 `compat/0.114.0/`。
 
 ```powershell
 ./build.ps1 -Configuration Release `
     -Sts2GameDir '<游戏安装目录>' `
-    -RitsuLibRoot '<RitsuLib 创意工坊目录>'
+    -RitsuLibRoot '<RitsuLib 变体包目录>'
 ```
 
 也可以用环境变量 `STS2_GAME_DIR` 和 `RITSULIB_ROOT` 指定这两个目录。构建后可在 `.godot/mono/temp/bin/Release/` 找到 `GoldLend.dll` 和 `GoldLend.json`。
