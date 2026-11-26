@@ -1,0 +1,147 @@
+name: Publish to Nexus Mods
+run-name: Nexus Mods ${{ inputs.tag }} [${{ inputs.asset_name }}|${{ inputs.mod_page_id }}]
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag (for example, v0.2.9)
+        type: string
+        required: true
+      asset_name:
+        description: Release ZIP filename when the release has multiple ZIPs
+        type: string
+      mod_page_id:
+        description: Slay the Spire II mod page number from its Nexus URL
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexus-mods-release
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check release and Nexus file versions
+        id: release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_ASSET: ${{ inputs.asset_name }}
+          NEXUS_MOD_PAGE_ID: ${{ inputs.mod_page_id || vars.NEXUSMODS_MOD_PAGE_ID }}
+          NEXUSMODS_FILE_ID: ${{ vars.NEXUSMODS_FILE_ID }}
+          NEXUSMODS_MOD_ID: ${{ vars.NEXUSMODS_MOD_ID }}
+          NEXUSMODS_API_KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+        run: |
+          if ($env:RELEASE_TAG -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
+              throw 'Enter a release tag such as v0.2.9.'
+          }
+          if (-not $env:NEXUSMODS_API_KEY) {
+              throw 'Set the NEXUSMODS_API_KEY repository secret.'
+          }
+          $version = $env:RELEASE_TAG.Substring(1)
+          $releaseJson = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { throw "Could not read release $env:RELEASE_TAG." }
+          $release = $releaseJson | ConvertFrom-Json
+          if ($release.draft -or $release.prerelease) { throw 'Publish a stable GitHub release first.' }
+          $assets = @($release.assets | Where-Object {
+              $_.name -match '^[A-Za-z0-9][A-Za-z0-9_.-]*\.zip$' -and
+              (-not $env:RELEASE_ASSET -or $_.name -ceq $env:RELEASE_ASSET)
+          })
+          if ($assets.Count -ne 1 -or $assets[0].state -ne 'uploaded' -or
+              $assets[0].digest -notmatch '^sha256:[a-f0-9]{64}$') {
+              throw 'Select one verified ZIP attached to the GitHub release.'
+          }
+          $zipName = $assets[0].name
+
+          function Get-NexusData([string]$Path) {
+              $request = @{
+                  Uri = "https://api.nexusmods.com/v3/$Path"
+                  Headers = @{ apikey = $env:NEXUSMODS_API_KEY }
+                  UserAgent = 'STS2-mod-publisher'
+                  TimeoutSec = 30
+              }
+              (Invoke-RestMethod @request).data
+          }
+
+          $fileId = $env:NEXUSMODS_FILE_ID
+          $modId = $env:NEXUSMODS_MOD_ID
+          if ($env:NEXUS_MOD_PAGE_ID) {
+              $pageId = $env:NEXUS_MOD_PAGE_ID
+              if ($pageId -notmatch '^[1-9][0-9]*$') { throw 'Enter the numeric Nexus mod page ID.' }
+              $mod = Get-NexusData "games/slaythespire2/mods/$pageId"
+              $main = $mod.main_file_version
+              if (-not $mod.id -or $mod.game_scoped_id -ne $pageId -or $main.game_scoped_id -notmatch '^[1-9][0-9]*$') {
+                  throw "Nexus page $pageId must already have a main file."
+              }
+              $mainFileVersion = Get-NexusData "games/slaythespire2/mod-file-versions/$($main.game_scoped_id)"
+              if ($mainFileVersion.id -ne $main.id -or -not $mainFileVersion.file.id) {
+                  throw "Could not identify the main file for Nexus page $pageId."
+              }
+              $fileId = [string]$mainFileVersion.file.id
+              $modId = [string]$mod.id
+              Write-Host "Nexus target: $($mod.name) (page $pageId, file $fileId)."
+          }
+          if (-not $fileId) { throw 'Enter a Nexus mod page ID or set NEXUSMODS_FILE_ID for the existing main file.' }
+
+          $escapedFileId = [Uri]::EscapeDataString($fileId)
+          $history = Get-NexusData "mod-files/$escapedFileId/versions"
+          if ($null -eq $history.versions) { throw 'Nexus returned no file version list.' }
+          if ($history.versions | Where-Object { ([string]$_.version).TrimStart('v') -ceq $version }) {
+              Write-Host "Nexus already has file version $version."
+              'upload=false' >> $env:GITHUB_OUTPUT
+              return
+          }
+
+          gh release download $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --pattern $zipName
+          if ($LASTEXITCODE -ne 0) { throw "Could not download $zipName." }
+          $digest = 'sha256:' + (Get-FileHash -LiteralPath $zipName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($digest -ne $assets[0].digest) { throw "Checksum mismatch for $zipName." }
+
+          $notes = if ($release.body) { [string]$release.body } else { "Version $version" }
+          $description = ($notes -replace '\s+', ' ').Trim()
+          if ($description.Length -gt 255) {
+              $description = ($description.Substring(0, 254) -replace '[\uD800-\uDBFF]$', '') + '…'
+          }
+          $delimiter = [Guid]::NewGuid().ToString('N')
+          @(
+              'upload=true'
+              "version=$version"
+              "filename=$zipName"
+              "file_id=$fileId"
+              "mod_id=$modId"
+              "description=$description"
+              "changelog<<$delimiter"
+              $notes
+              $delimiter
+          ) >> $env:GITHUB_OUTPUT
+
+      - name: Upload a new Nexus Mods file version
+        id: nexus
+        if: steps.release.outputs.upload == 'true'
+        uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2 # v1.0.0-beta.11
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          file_id: ${{ steps.release.outputs.file_id }}
+          filename: ${{ steps.release.outputs.filename }}
+          version: ${{ steps.release.outputs.version }}
+          description: ${{ steps.release.outputs.description }}
+          category: main
+          show_requirements_pop_up: true
+          update_mod_version: true
+          mod_id: ${{ steps.release.outputs.mod_id }}
+          changelog: ${{ steps.release.outputs.mod_id != '' && steps.release.outputs.changelog || '' }}
+
+      - name: Report an uploaded file with a failed changelog
+        if: failure() && steps.nexus.outputs.version_id != ''
+        shell: pwsh
+        env:
+          NEXUS_VERSION_ID: ${{ steps.nexus.outputs.version_id }}
+        run: |
+          "Nexus received file version $env:NEXUS_VERSION_ID. Add the full changelog from the release on the Nexus page." >> $env:GITHUB_STEP_SUMMARY
